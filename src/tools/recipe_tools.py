@@ -213,6 +213,7 @@ def register_recipe_tools(mcp: FastMCP, mealie: MealieFetcher) -> None:
         slug: str,
         ingredients: List[str],
         instructions: List[str],
+        tool_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Replaces the ingredients and instructions of an existing recipe.
 
@@ -220,6 +221,7 @@ def register_recipe_tools(mcp: FastMCP, mealie: MealieFetcher) -> None:
             slug: The unique text identifier for the recipe to be updated.
             ingredients: A list of ingredients for the recipe include quantities and units.
             instructions: A list of instructions for preparing the recipe.
+            tool_ids: Optional list of tool UUIDs to associate with the recipe.
 
         Returns:
             Dict[str, Any]: The updated recipe details.
@@ -229,6 +231,12 @@ def register_recipe_tools(mcp: FastMCP, mealie: MealieFetcher) -> None:
             recipe_json = mealie.get_recipe(slug)
             recipe_json["recipeIngredient"] = _parse_ingredient_strings(ingredients)
             recipe_json["recipeInstructions"] = [{"text": i} for i in instructions]
+            
+            if tool_ids is not None:
+                all_tools = mealie.get_organizer_tools(per_page=100).get("items", [])
+                tool_map = {t["id"]: t for t in all_tools}
+                recipe_json["tools"] = [tool_map[tid] for tid in tool_ids if tid in tool_map]
+
             return mealie.update_recipe(slug, recipe_json)
         except Exception as e:
             error_msg = f"Error updating recipe '{slug}': {str(e)}"
@@ -251,6 +259,7 @@ def register_recipe_tools(mcp: FastMCP, mealie: MealieFetcher) -> None:
         recipe_servings: Optional[str] = None,
         rating: Optional[float] = None,
         org_url: Optional[str] = None,
+        tool_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Partially update a recipe (only updates provided fields). Use this for updating
         metadata fields. For updating ingredients or instructions, use update_recipe instead.
@@ -267,6 +276,7 @@ def register_recipe_tools(mcp: FastMCP, mealie: MealieFetcher) -> None:
             recipe_servings: Number of servings (optional)
             rating: Rating from 0-5 (optional)
             org_url: Original source URL for the recipe (optional)
+            tool_ids: Optional list of tool UUIDs to associate with the recipe (optional)
 
         Returns:
             Dict[str, Any]: The updated recipe details.
@@ -295,11 +305,17 @@ def register_recipe_tools(mcp: FastMCP, mealie: MealieFetcher) -> None:
                 recipe_data["rating"] = rating
             if org_url is not None:
                 recipe_data["orgURL"] = org_url
+            
+            if tool_ids is not None:
+                all_tools = mealie.get_organizer_tools(per_page=100).get("items", [])
+                tool_map = {t["id"]: t for t in all_tools}
+                recipe_data["tools"] = [tool_map[tid] for tid in tool_ids if tid in tool_map]
 
             if not recipe_data:
                 raise ValueError("At least one field must be provided to update")
 
             return mealie.patch_recipe(slug, recipe_data)
+
         except Exception as e:
             error_msg = f"Error patching recipe '{slug}': {str(e)}"
             logger.error({"message": error_msg})

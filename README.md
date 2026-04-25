@@ -206,6 +206,25 @@ uv run src/server.py
 mcp-proxy --port 8004 -- uv run src/server.py
 ```
 
+### Gemini CLI configuration
+
+Add to your Gemini CLI config (`.gemini/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "mealie": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/mealie-mcp", "src/server.py"],
+      "env": {
+        "MEALIE_BASE_URL": "https://mealie.example.com",
+        "MEALIE_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
 ### Claude Desktop configuration
 
 Add to your Claude Desktop config (`claude_desktop_config.json`):
