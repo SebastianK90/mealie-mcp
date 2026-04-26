@@ -260,61 +260,74 @@ def register_recipe_tools(mcp: FastMCP, mealie: MealieFetcher) -> None:
         rating: Optional[float] = None,
         org_url: Optional[str] = None,
         tool_ids: Optional[List[str]] = None,
+        category_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Partially update a recipe (only updates provided fields). Use this for updating
-        metadata fields. For updating ingredients or instructions, use update_recipe instead.
+        """Partially update a recipe. This tool is now extra robust by fetching the
+        current recipe state and performing a full update.
 
         Args:
             slug: The unique text identifier for the recipe to be updated.
             name: New name for the recipe (optional)
             description: New description for the recipe (optional)
-            recipe_yield: New yield description for the recipe, e.g. "4 servings" (optional)
-            total_time: New total time for the recipe, e.g. "30 minutes" (optional)
+            recipe_yield: New yield description for the recipe (optional)
+            total_time: New total time for the recipe (optional)
             prep_time: New prep time for the recipe (optional)
             cook_time: New cook time for the recipe (optional)
             perform_time: New perform/active time for the recipe (optional)
             recipe_servings: Number of servings (optional)
             rating: Rating from 0-5 (optional)
             org_url: Original source URL for the recipe (optional)
-            tool_ids: Optional list of tool UUIDs to associate with the recipe (optional)
+            tool_ids: Optional list of tool UUIDs to associate (replaces existing)
+            category_ids: Optional list of category UUIDs to associate (replaces existing)
 
         Returns:
             Dict[str, Any]: The updated recipe details.
         """
         try:
-            logger.info({"message": "Patching recipe", "slug": slug})
+            logger.info({"message": "Patching recipe (Robust Mode)", "slug": slug})
+            
+            # Fetch current state
+            recipe_json = mealie.get_recipe(slug)
 
-            recipe_data = {}
             if name is not None:
-                recipe_data["name"] = name
+                recipe_json["name"] = name
             if description is not None:
-                recipe_data["description"] = description
+                recipe_json["description"] = description
             if recipe_yield is not None:
-                recipe_data["recipeYield"] = recipe_yield
+                recipe_json["recipeYield"] = recipe_yield
             if total_time is not None:
-                recipe_data["totalTime"] = total_time
+                recipe_json["totalTime"] = total_time
             if prep_time is not None:
-                recipe_data["prepTime"] = prep_time
+                recipe_json["prepTime"] = prep_time
             if cook_time is not None:
-                recipe_data["cookTime"] = cook_time
+                recipe_json["cookTime"] = cook_time
             if perform_time is not None:
-                recipe_data["performTime"] = perform_time
+                recipe_json["performTime"] = perform_time
             if recipe_servings is not None:
-                recipe_data["recipeServings"] = recipe_servings
+                recipe_json["recipeServings"] = recipe_servings
             if rating is not None:
-                recipe_data["rating"] = rating
+                recipe_json["rating"] = rating
             if org_url is not None:
-                recipe_data["orgURL"] = org_url
+                recipe_json["orgURL"] = org_url
             
             if tool_ids is not None:
                 all_tools = mealie.get_organizer_tools(per_page=100).get("items", [])
                 tool_map = {t["id"]: t for t in all_tools}
-                recipe_data["tools"] = [tool_map[tid] for tid in tool_ids if tid in tool_map]
+                recipe_json["tools"] = [tool_map[tid] for tid in tool_ids if tid in tool_map]
 
-            if not recipe_data:
-                raise ValueError("At least one field must be provided to update")
+            if category_ids is not None:
+                all_categories = mealie.get_categories(per_page=100).get("items", [])
+                cat_map = {c["id"]: c for c in all_categories}
+                recipe_json["recipeCategory"] = [cat_map[cid] for cid in category_ids if cid in cat_map]
 
-            return mealie.patch_recipe(slug, recipe_data)
+            # Use update_recipe (PUT) instead of patch_recipe (PATCH) for reliability
+            return mealie.update_recipe(slug, recipe_json)
+
+        except Exception as e:
+            error_msg = f"Error patching recipe '{slug}': {str(e)}"
+            logger.error({"message": error_msg})
+            logger.debug({"message": "Error traceback", "traceback": traceback.format_exc()})
+            raise ToolError(error_msg)
 
         except Exception as e:
             error_msg = f"Error patching recipe '{slug}': {str(e)}"
