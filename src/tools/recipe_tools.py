@@ -261,6 +261,7 @@ def register_recipe_tools(mcp: FastMCP, mealie: MealieFetcher) -> None:
         org_url: Optional[str] = None,
         tool_ids: Optional[List[str]] = None,
         category_ids: Optional[List[str]] = None,
+        tag_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Partially update a recipe. This tool is now extra robust by fetching the
         current recipe state and performing a full update.
@@ -279,6 +280,7 @@ def register_recipe_tools(mcp: FastMCP, mealie: MealieFetcher) -> None:
             org_url: Original source URL for the recipe (optional)
             tool_ids: Optional list of tool UUIDs to associate (replaces existing)
             category_ids: Optional list of category UUIDs to associate (replaces existing)
+            tag_ids: Optional list of tag UUIDs to associate (replaces existing)
 
         Returns:
             Dict[str, Any]: The updated recipe details.
@@ -320,14 +322,13 @@ def register_recipe_tools(mcp: FastMCP, mealie: MealieFetcher) -> None:
                 cat_map = {c["id"]: c for c in all_categories}
                 recipe_json["recipeCategory"] = [cat_map[cid] for cid in category_ids if cid in cat_map]
 
+            if tag_ids is not None:
+                all_tags = mealie.get_tags(per_page=100).get("items", [])
+                tag_map = {t["id"]: t for t in all_tags}
+                recipe_json["tags"] = [tag_map[tid] for tid in tag_ids if tid in tag_map]
+
             # Use update_recipe (PUT) instead of patch_recipe (PATCH) for reliability
             return mealie.update_recipe(slug, recipe_json)
-
-        except Exception as e:
-            error_msg = f"Error patching recipe '{slug}': {str(e)}"
-            logger.error({"message": error_msg})
-            logger.debug({"message": "Error traceback", "traceback": traceback.format_exc()})
-            raise ToolError(error_msg)
 
         except Exception as e:
             error_msg = f"Error patching recipe '{slug}': {str(e)}"
